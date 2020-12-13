@@ -25,7 +25,7 @@ import * as Animatable from 'react-native-animatable';
 
 import AsyncStorage from '@react-native-community/async-storage';
 
-const ReminderCard = ({ i, date, enabled, note, changeDate, changeEnabled, changeNote, deleteReminder }) => {
+const ReminderCard = ({ i, date, enabled, note, changeDate, changeEnabled, changeNote, deleteReminder, storeData }) => {
   console.log("Reminder Card render")
 
   const [pickerShow, setPickerShow] = React.useState(0);
@@ -34,7 +34,8 @@ const ReminderCard = ({ i, date, enabled, note, changeDate, changeEnabled, chang
     <Animatable.View ref={cardRef}>
       <Surface style={{ elevation: 5, margin: 10, padding: 20 }}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-          <TextInput style={{ backgroundColor: 'transparent', flex: 1 }} label="Reminder Note" value={note} onChangeText={(text) => changeNote(i, text)} />
+          <TextInput style={{ backgroundColor: 'transparent', flex: 1 }} label="Reminder Note" value={note} 
+            onChangeText={(text) => changeNote(i, text)} onEndEditing={storeData} />
           <View style={{ position: 'absolute', right: -30, top: -30 }}>
             <IconButton size={40} animated={true} color={enabled ? 'green' : 'orange'}
               icon={enabled ? 'checkbox-marked' : 'checkbox-blank-outline'}
@@ -79,10 +80,33 @@ const ReminderScreen = () => {
   var cardMapRef = React.useRef(0);
 
   const [remainderData, setRemainderData] = React.useState([
-    { date: new Date(new Date(Date.now() + 180 * 1000).setSeconds(0, 0)), enabled: false, note: "", rem_key: "1" },
-    { date: new Date(new Date(Date.now() + 60 * 1000).setSeconds(0, 0)), enabled: false, note: "", rem_key: "2" },
-    { date: new Date(new Date(Date.now() + 120 * 1000).setSeconds(0, 0)), enabled: false, note: "", rem_key: "3" }]);
-  const scrollRef = React.useRef()
+    { date: new Date(new Date(Date.now() + 180 * 1000).setSeconds(0, 0)).toString(), enabled: false, note: "", rem_key: "1" },
+    { date: new Date(new Date(Date.now() + 60 * 1000).setSeconds(0, 0)).toString(), enabled: false, note: "", rem_key: "2" },
+    { date: new Date(new Date(Date.now() + 120 * 1000).setSeconds(0, 0)).toString(), enabled: false, note: "", rem_key: "3" }]);
+  const [delItemState, setDelItemState] = React.useState(2);
+
+  const scrollRef = React.useRef();
+  const viewAnimRef = React.useRef(null);
+  const remCount = React.useRef(2);
+
+
+  React.useEffect(() => {
+    console.log('fetch storage')
+    const getData = async () => {
+      try {
+        const jsonValue = await AsyncStorage.getItem('@RemData')
+        return jsonValue != null ? JSON.parse(jsonValue) : null;
+      } catch (e) {
+        // error reading value
+      }
+    }
+
+
+    getData().then((val) => {
+      if (val) setRemainderData(val);
+    })
+  }, [])
+
 
   React.useEffect(() => {
     if (newRemAdd.current) {
@@ -94,10 +118,10 @@ const ReminderScreen = () => {
         PushNotification.localNotificationSchedule({
           message: "Reminder",
           title: remainderData[curChange.current].note,
-          date: remainderData[curChange.current].date,
+          date: new Date(remainderData[curChange.current].date),
           id: remainderData[curChange.current].rem_key,
         })
-        curChange.current = -1;
+        curChange.current = -1; 
       }
       else {
         PushNotification.cancelLocalNotifications({ id: remainderData[curChange.current].rem_key });
@@ -107,21 +131,53 @@ const ReminderScreen = () => {
 
   }, [remainderData])
 
+  React.useEffect(() => {
+    if (delItemState != remCount.current) {
+      viewAnimRef.current.transitionTo({
+        top: -180
+      }, 1000);
+      setTimeout(() => {
+        var temp = remainderData.slice(0);
+        temp.splice(delItemState, 1)
+        cardMapRef.current++;
+        setRemainderData(temp);
+        remCount.current--;
+        setDelItemState(remCount.current);
+        viewAnimRef.current.transitionTo({
+          top: 0
+        }, 10);
+      }, 1000)
+    }
+  }, [delItemState]);
+
+
+  const storeData = async () => {
+    try {
+      
+      const jsonValue = JSON.stringify(remainderData)
+      await AsyncStorage.setItem('@RemData', jsonValue)
+    } catch (e) {
+      // saving error
+    }
+  }
+
   const changeDate = (i, date) => {
     if (date.getTime() > new Date().getTime()) {
       var temp = remainderData.slice(0);
-      temp[i].date = date;
+      temp[i].date = date.toString();
       curChange.current = i;
       setRemainderData(temp);
+      storeData();
     }
   }
 
   const changeEnabled = (i, enabled) => {
-    if (remainderData[i].date.getTime() > new Date().getTime()) {
+    if (new Date(remainderData[i].date).getTime() > new Date().getTime()) {
       var temp = remainderData.slice(0);
       temp[i].enabled = enabled;
       curChange.current = i;
       setRemainderData(temp);
+      storeData();
     }
   }
 
@@ -135,30 +191,47 @@ const ReminderScreen = () => {
   }
 
   const deleteReminder = (i) => {
-    console.log(remainderData)
-    var temp = remainderData.slice(0);
-    temp.splice(i, 1)
-    console.log(temp)
-    cardMapRef.current++;
-    setRemainderData(temp);
+    if (i == remCount.current) {
+      var temp = remainderData.slice(0);
+      temp.splice(delItemState, 1)
+      cardMapRef.current++;
+      setRemainderData(temp);
+      remCount.current--;
+      setDelItemState(remCount.current);
+    }else
+      setDelItemState(i);
+    storeData();
   }
 
   return (
     <>
       <ScrollView ref={scrollRef} style={{ marginBottom: 50 }}>
-        {
-          remainderData.map((e, i) => (
-            <ReminderCard key={"rem_card" + cardMapRef.current + i} i={i} date={e.date} enabled={e.enabled} note={e.note} changeDate={changeDate} changeEnabled={changeEnabled}
-              changeNote={changeNote} deleteReminder={deleteReminder} />
-          ))
+        <View>
+          {
+            remainderData.slice(0, delItemState + 1).map((e, i) => (
+              <ReminderCard key={"rem_card_a" + cardMapRef.current + i} i={i} date={new Date(e.date)} enabled={e.enabled} note={e.note} changeDate={changeDate} changeEnabled={changeEnabled}
+                changeNote={changeNote} deleteReminder={deleteReminder} storeData={storeData} />
+            ))
 
-        }
+          }
+        </View>
+        <Animatable.View ref={viewAnimRef} style={{ position: 'relative' }}>
+          {
+            remainderData.slice(delItemState + 1).map((e, i) => (
+              <ReminderCard key={"rem_card_b" + cardMapRef.current + i} i={i} date={new Date(e.date)} enabled={e.enabled} note={e.note} changeDate={changeDate} changeEnabled={changeEnabled}
+                changeNote={changeNote} deleteReminder={deleteReminder} storeData={storeData} />
+            ))
+
+          }
+        </Animatable.View>
       </ScrollView>
       <FAB style={{ position: 'absolute', right: 0, bottom: 0, margin: 40 }} icon="plus"
         onPress={() => {
           var temp = remainderData.slice(0);
           temp.push({ date: new Date(new Date(Date.now() + 60 * 1000).setSeconds(0, 0)), enabled: false, note: "" });
           newRemAdd.current = true;
+          remCount.current++;
+          setDelItemState(remCount.current);
           setRemainderData(temp);
 
         }} />
@@ -182,7 +255,7 @@ const App = () => {
     <NavigationContainer>
       <Tab.Navigator>
         <Tab.Screen name="Reminder" component={ReminderScreen} />
-        <Tab.Screen name="Scheduler" component={SchedulerScreen} />
+        {/* <Tab.Screen name="Scheduler" component={SchedulerScreen} /> */}
       </Tab.Navigator>
     </NavigationContainer>
 
