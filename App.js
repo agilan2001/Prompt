@@ -14,9 +14,6 @@ import {
   TextInput
 } from 'react-native-paper'
 
-import { NavigationContainer } from '@react-navigation/native'
-import { createMaterialTopTabNavigator } from '@react-navigation/material-top-tabs';
-
 import DateTimePicker from '@react-native-community/datetimepicker';
 
 var PushNotification = require('react-native-push-notification');
@@ -24,6 +21,9 @@ var PushNotification = require('react-native-push-notification');
 import * as Animatable from 'react-native-animatable';
 
 import AsyncStorage from '@react-native-community/async-storage';
+
+import SplashScreen from 'react-native-splash-screen';
+
 
 const ReminderCard = ({ i, date, enabled, note, changeDate, changeEnabled, changeNote, deleteReminder, storeData }) => {
   console.log("Reminder Card render")
@@ -104,7 +104,9 @@ const ReminderScreen = () => {
 
     getData().then((val) => {
       if (val) setRemainderData(val);
+      SplashScreen.hide();
     })
+
   }, [])
 
 
@@ -240,24 +242,14 @@ const ReminderScreen = () => {
 }
 
 
-const SchedulerScreen = () => {
-  console.log("Scheduler Screen render")
-  return (
-    <Button>asd</Button>
-  )
-}
 
-const Tab = createMaterialTopTabNavigator();
+
 
 const App = () => {
   console.log("App render")
   return (
-    <NavigationContainer>
-      <Tab.Navigator>
-        <Tab.Screen name="Reminder" component={ReminderScreen} />
-        {/* <Tab.Screen name="Scheduler" component={SchedulerScreen} /> */}
-      </Tab.Navigator>
-    </NavigationContainer>
+    
+    <ReminderScreen />
 
 
   );
